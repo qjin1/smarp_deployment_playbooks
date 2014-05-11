@@ -97,7 +97,12 @@ func getProxyFromRevision(revision string) (http.Handler) {
 
 var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	var revision string
-	if entryPoint(r.URL.Path) {
+	path := r.URL.Path
+	if path == "/api/lb/subdomain" {
+		versionSubdomainHandler(w, r)
+		return
+	}
+	if entryPoint(path) {
 		var versionServed string
 		// if the request is an entry point
 		// check version from param, then cookie, then subdomain, then fallback to stable
@@ -155,25 +160,36 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 	proxy.ServeHTTP(w, r)
 }
 var versionSubdomainHandler = func(w http.ResponseWriter, r *http.Request) {
+	subdomain := r.FormValue("s")
+	if subdomain == "" {
+		subdomain = r.FormValue("subdomain")
+	}
 	switch r.Method {
 	case "GET":
 		e := json.NewEncoder(w)
+		if subdomain != "" {
+			e.Encode(map[string]string{
+				subdomain: subdomainVersionMap[subdomain],
+			})
+			return
+		}
 		e.Encode(subdomainVersionMap)
 	case "POST":
-		version := r.FormValue("v")
-		if version == "" {
+		if subdomain == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		subdomain := r.FormValue("s")
-		if subdomain == "" {
+		version := r.FormValue("v")
+		if version == "" {
+			version = r.FormValue("version")
+		}
+		if version == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		subdomainVersionMap[subdomain] = version
 		w.WriteHeader(http.StatusNoContent)
 	case "DELETE":
-		subdomain := r.FormValue("s")
 		if subdomain == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
