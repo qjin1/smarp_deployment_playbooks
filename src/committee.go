@@ -8,6 +8,7 @@ import (
 	"os"
 	"net/url"
 	"sync"
+	"time"
 )
 
 func entryPoint(path string) bool {
@@ -26,6 +27,9 @@ http.Handler
 }
 type marshallableProxy map[string]*ReverseProxyMarshal
 
+const (
+	flushInterval = 100 * time.Millisecond
+)
 func (m *ReverseProxyMarshal) UnmarshalJSON(inp []byte) (err error) {
 	err = json.Unmarshal(inp, &m.url)
 	if err != nil {
@@ -36,6 +40,7 @@ func (m *ReverseProxyMarshal) UnmarshalJSON(inp []byte) (err error) {
 		return
 	}
 	m.ReverseProxy = httputil.NewSingleHostReverseProxy(target)
+	m.FlushInterval = flushInterval
 	return nil
 }
 func (m *ReverseProxyMarshal) MarshalJSON() ([]byte, error) {
@@ -185,6 +190,7 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 		}
 		proxyUrl := r.PostFormValue("p")
 		proxy, err := newReverseProxyMarshal(proxyUrl)
+		proxy.FlushInterval = flushInterval
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
