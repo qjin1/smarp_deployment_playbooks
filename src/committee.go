@@ -107,6 +107,8 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if entryPoint(path) {
+		// @todo dummy way to clear cache?!
+		r.Header.Set("Cache-Control", "no-cache")
 		var versionServed string
 		// if the request is an entry point
 		// check version from param, then cookie, then subdomain, then fallback to stable
