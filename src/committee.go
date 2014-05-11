@@ -102,6 +102,10 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		versionSubdomainHandler(w, r)
 		return
 	}
+	if path == "/api/lb/version" {
+		revisionVersionHandler(w, r)
+		return
+	}
 	if entryPoint(path) {
 		var versionServed string
 		// if the request is an entry point
