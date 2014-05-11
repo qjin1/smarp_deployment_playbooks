@@ -104,8 +104,13 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		// 1. param
 		versionAsked := r.FormValue("v")
 		if versionAsked == "" {
-			// 2. cookie
-			if c, _ := r.Cookie("v"); c != nil {
+			// 2. cookie v
+			c, _ := r.Cookie("v");
+			// 2bis. cookie version
+			if  c == nil {
+				c, _ = r.Cookie("version");
+			}
+			if  c != nil {
 				versionAsked = c.Value
 			}
 		}
