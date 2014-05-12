@@ -99,11 +99,11 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 	var revision string
 	path := r.URL.Path
 	if path == "/api/lb/subdomain" {
-		versionSubdomainHandler(w, r)
+		subdomainVersionHandler(w, r)
 		return
 	}
 	if path == "/api/lb/version" {
-		revisionVersionHandler(w, r)
+		versionRevisionHandler(w, r)
 		return
 	}
 	if entryPoint(path) {
@@ -160,12 +160,13 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			revision = getRevisionFromVersion("stable")
 		}
 	}
-	w.Header().Set("Expires", "-1")
-	w.Header().Set("Cache-Control", "must-revalidate, private")
+	h := w.Header()
+	h.Set("Expires", "-1")
+	h.Set("Cache-Control", "must-revalidate, private")
 	proxy := getProxyFromRevision(revision)
 	proxy.ServeHTTP(w, r)
 }
-var versionSubdomainHandler = func(w http.ResponseWriter, r *http.Request) {
+var subdomainVersionHandler = func(w http.ResponseWriter, r *http.Request) {
 	subdomain := r.FormValue("s")
 	if subdomain == "" {
 		subdomain = r.FormValue("subdomain")
@@ -235,7 +236,7 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var revisionVersionHandler = func(w http.ResponseWriter, r *http.Request) {
+var versionRevisionHandler = func(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		e := json.NewEncoder(w)
@@ -313,8 +314,8 @@ func main() {
 	}()
 	go func() {
 		mux := http.NewServeMux()
-		mux.HandleFunc("/sv", versionSubdomainHandler)
-		mux.HandleFunc("/vr", revisionVersionHandler)
+		mux.HandleFunc("/sv", subdomainVersionHandler)
+		mux.HandleFunc("/vr", versionRevisionHandler)
 		mux.HandleFunc("/rp", revisionProxyHandler)
 		errChan <- http.ListenAndServe(":"+os.Args[2], mux)
 	}()
