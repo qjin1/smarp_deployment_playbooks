@@ -1,12 +1,12 @@
 package main
 
 import (
-	"net/http/httputil"
-	"net/http"
-	"strings"
 	"encoding/json"
-	"os"
+	"net/http"
+	"net/http/httputil"
 	"net/url"
+	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -15,21 +15,28 @@ func entryPoint(path string) bool {
 	//	var entryPointMap = map[string]struct{}{
 	//		"/": struct{}{},
 	//	}
-	if (path == "/") {
+	if path == "/" {
 		return true
 	}
 	return false
 }
 
 type Handler interface {
-json.Marshaler
-http.Handler
+	json.Marshaler
+	http.Handler
 }
 type marshallableProxy map[string]*ReverseProxyMarshal
 
 const (
 	flushInterval = 100 * time.Millisecond
 )
+const (
+	versionKey   string = "version"
+	revisionKey         = "revision"
+	subdomainKey        = "subdomain"
+	proxyKey            = "p"
+)
+
 func (m *ReverseProxyMarshal) UnmarshalJSON(inp []byte) (err error) {
 	err = json.Unmarshal(inp, &m.url)
 	if err != nil {
@@ -83,7 +90,7 @@ func getRevisionFromVersion(version string) (revision string) {
 	}
 	return revision
 }
-func getProxyFromRevision(revision string) (http.Handler) {
+func getProxyFromRevision(revision string) http.Handler {
 	proxy := revisionProxyMap[revision]
 	if proxy == nil {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,15 +120,15 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		// if the request is an entry point
 		// check version from param, then cookie, then subdomain, then fallback to stable
 		// 1. param
-		versionAsked := r.FormValue("v")
+		versionAsked := r.FormValue(versionKey)
 		if versionAsked == "" {
 			// 2. cookie v
-			c, _ := r.Cookie("v");
-			// 2bis. cookie version
-			if  c == nil {
-				c, _ = r.Cookie("version");
-			}
-			if  c != nil {
+			c, _ := r.Cookie(versionKey)
+			//			// 2bis. cookie version
+			//			if c == nil {
+			//				c, _ = r.Cookie("version")
+			//			}
+			if c != nil {
 				versionAsked = c.Value
 			}
 		}
@@ -135,23 +142,23 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			versionServed = versionAsked
 			// if explicitly asked, save the version
 			http.SetCookie(w, &http.Cookie{
-				Name: "v",
+				Name:  versionKey,
 				Value: versionAsked,
 			})
 		}
 		revision = getRevisionFromVersion(versionServed)
 
 		http.SetCookie(w, &http.Cookie{
-			Name: "r",
+			Name:  revisionKey,
 			Value: revision,
 		})
 	} else {
 		// check version from param, then cookie, then fallback to stable
 		// #1. param
-		revision = r.FormValue("r")
+		revision = r.FormValue(revisionKey)
 		if revision == "" {
 			// #2. cookie
-			if c, err := r.Cookie("r"); err == nil {
+			if c, err := r.Cookie(revisionKey); err == nil {
 				revision = c.Value
 			}
 		}
@@ -167,9 +174,9 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 	proxy.ServeHTTP(w, r)
 }
 var subdomainVersionHandler = func(w http.ResponseWriter, r *http.Request) {
-	subdomain := r.FormValue("s")
+	subdomain := r.FormValue(subdomainKey)
 	if subdomain == "" {
-		subdomain = r.FormValue("subdomain")
+		subdomain = r.FormValue(subdomainKey)
 	}
 	switch r.Method {
 	case "GET":
@@ -186,10 +193,10 @@ var subdomainVersionHandler = func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		version := r.FormValue("v")
-		if version == "" {
-			version = r.FormValue("version")
-		}
+		version := r.FormValue(versionKey)
+		//		if version == "" {
+		//			version = r.FormValue("version")
+		//		}
 		if version == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -211,12 +218,12 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 		e := json.NewEncoder(w)
 		e.Encode(revisionProxyMap)
 	case "POST":
-		revision := r.FormValue("r")
+		revision := r.FormValue(revisionKey)
 		if revision == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		proxyUrl := r.PostFormValue("p")
+		proxyUrl := r.PostFormValue(proxyKey)
 		proxy, err := newReverseProxyMarshal(proxyUrl)
 		proxy.FlushInterval = flushInterval
 		if err != nil {
@@ -226,7 +233,7 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 		revisionProxyMap[revision] = proxy
 		w.WriteHeader(http.StatusNoContent)
 	case "DELETE":
-		revision := r.FormValue("r")
+		revision := r.FormValue(revisionKey)
 		if revision == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -242,12 +249,12 @@ var versionRevisionHandler = func(w http.ResponseWriter, r *http.Request) {
 		e := json.NewEncoder(w)
 		e.Encode(versionRevisionMap)
 	case "POST":
-		version := r.FormValue("v")
+		version := r.FormValue(versionKey)
 		if version == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		revision := r.FormValue("r")
+		revision := r.FormValue(revisionKey)
 		if revision == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -255,7 +262,7 @@ var versionRevisionHandler = func(w http.ResponseWriter, r *http.Request) {
 		versionRevisionMap[version] = revision
 		w.WriteHeader(http.StatusNoContent)
 	case "DELETE":
-		version := r.FormValue("v")
+		version := r.FormValue(versionKey)
 		if version == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
