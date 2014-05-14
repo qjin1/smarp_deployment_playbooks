@@ -93,11 +93,15 @@ func getRevisionFromVersion(version string) (revision string) {
 func getProxyFromRevision(revision string) http.Handler {
 	proxy := revisionProxyMap[revision]
 	if proxy == nil {
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("Service unavailable!"))
-		})
-		return handler
+		// get default revision
+		proxy = revisionProxyMap[versionRevisionMap["stable"]]
+		if proxy == nil {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte("Service unavailable!"))
+			})
+			return handler
+		}
 	}
 	return proxy
 }
