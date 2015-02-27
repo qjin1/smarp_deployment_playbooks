@@ -118,8 +118,6 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if entryPoint(path) {
-		// @todo dummy way to clear cache?!
-		r.Header.Set("Cache-Control", "no-cache")
 		var versionServed string
 		// if the request is an entry point
 		// check version from param, then cookie, then subdomain, then fallback to stable
@@ -171,9 +169,6 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			revision = getRevisionFromVersion("stable")
 		}
 	}
-	h := w.Header()
-	h.Set("Expires", "-1")
-	h.Set("Cache-Control", "must-revalidate, private")
 	proxy := getProxyFromRevision(revision)
 	proxy.ServeHTTP(w, r)
 }
