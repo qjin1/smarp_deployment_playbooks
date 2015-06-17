@@ -122,7 +122,7 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		// if the request is an entry point
 		// check version from param, then cookie, then subdomain, then fallback to stable
 		// 1. param
-		versionAsked := r.FormValue(versionKey)
+		versionAsked := r.URL.Query().Get(versionKey)
 		if versionAsked == "" {
 			// 2. cookie v
 			c, _ := r.Cookie(versionKey)
@@ -157,7 +157,7 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 	} else {
 		// check version from param, then cookie, then fallback to stable
 		// #1. param
-		revision = r.FormValue(revisionKey)
+		revision = r.URL.Query().Get(revisionKey)
 		if revision == "" {
 			// #2. cookie
 			if c, err := r.Cookie(revisionKey); err == nil {
