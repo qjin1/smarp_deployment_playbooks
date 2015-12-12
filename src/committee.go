@@ -126,10 +126,6 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		if versionAsked == "" {
 			// 2. cookie v
 			c, _ := r.Cookie(versionKey)
-			//			// 2bis. cookie version
-			//			if c == nil {
-			//				c, _ = r.Cookie("version")
-			//			}
 			if c != nil {
 				versionAsked = c.Value
 			}
@@ -155,17 +151,25 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			Value: revision,
 		})
 	} else {
-		// check version from param, then cookie, then fallback to stable
-		// #1. param
+		// check revision from param, then cookie, then version from subdomain, then fallback to stable
+		// 1. param
 		revision = r.URL.Query().Get(revisionKey)
 		if revision == "" {
-			// #2. cookie
+			// 2. cookie
 			if c, err := r.Cookie(revisionKey); err == nil {
 				revision = c.Value
 			}
 		}
 		if revision == "" {
-			// #3. stable
+			domain := r.Host
+			// @todo unsafe
+			subdomain := domain[:strings.Index(domain, ".")]
+			// 3. subdomain
+			versionServed := getVersionFromSubdomain(subdomain)
+			revision = getRevisionFromVersion(versionServed)
+		}
+		if revision == "" {
+			// 4. stable
 			revision = getRevisionFromVersion("stable")
 		}
 	}
