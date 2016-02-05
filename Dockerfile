@@ -10,8 +10,12 @@ COPY bin/committee ${WORKON_HOME}/
 WORKDIR ${WORKON_HOME}/
 
 # Create empty json objects for the script
-RUN echo "{}" > ${WORKON_HOME}/rp.json && echo "{}" > ${WORKON_HOME}/vr.json && echo "{}" > ${WORKON_HOME}/sv.json
+RUN mkdir ${WORKON_HOME}/data
 
+# Create empty files if they don't exist already
+RUN if [ ! -e "${WORKON_HOME}/data/rp.json" ]; then echo "{}" > ${WORKON_HOME}/data/rp.json; fi
+RUN if [ ! -e "${WORKON_HOME}/data/vr.json" ]; then echo "{}" > ${WORKON_HOME}/data/vr.json; fi 
+RUN if [ ! -e "${WORKON_HOME}/data/sv.json" ]; then echo "{}" > ${WORKON_HOME}/data/sv.json; fi
 
 # Start the script
 CMD ["./committee", "2052", "2053"]

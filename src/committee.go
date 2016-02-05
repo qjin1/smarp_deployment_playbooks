@@ -280,7 +280,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		f, err := os.Open("vr.json")
+		f, err := os.Open("data/vr.json")
 		if err != nil {
 			panic(err)
 		}
@@ -293,7 +293,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		f, err := os.Open("sv.json")
+		f, err := os.Open("data/sv.json")
 		if err != nil {
 			panic(err)
 		}
@@ -306,7 +306,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		f, err := os.Open("rp.json")
+		f, err := os.Open("data/rp.json")
 		if err != nil {
 			panic(err)
 		}
