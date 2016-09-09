@@ -105,6 +105,13 @@ func getProxyFromRevision(revision string) http.Handler {
 	}
 	return proxy
 }
+func getSubdomain(domain string) string {
+	index := strings.Index(domain, ".")
+	if index < 0 {
+		index = 0
+	}
+	return domain[:index]
+}
 
 var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 	var revision string
@@ -131,9 +138,7 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			}
 		}
 		if versionAsked == "" {
-			domain := r.Host
-			// @todo unsafe
-			subdomain := domain[:strings.Index(domain, ".")]
+			subdomain := getSubdomain(r.Host)
 			// 3. subdomain
 			versionServed = getVersionFromSubdomain(subdomain)
 		} else {
@@ -161,9 +166,7 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 			}
 		}
 		if revision == "" {
-			domain := r.Host
-			// @todo unsafe
-			subdomain := domain[:strings.Index(domain, ".")]
+			subdomain := getSubdomain(r.Host)
 			// 3. subdomain
 			versionServed := getVersionFromSubdomain(subdomain)
 			revision = getRevisionFromVersion(versionServed)
