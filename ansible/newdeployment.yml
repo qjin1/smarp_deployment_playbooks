@@ -1,0 +1,7 @@
+---
+ - name: Transfer and execute a script.
+   hosts: webservers 
+   tasks:
+
+      - name: Copy and Execute the script 
+        script: /usr/local/etc/ansible/new_deployment.sh
