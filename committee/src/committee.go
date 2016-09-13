@@ -210,7 +210,14 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 
 	}
 
-	if r.Method == "GET" && !shouldIUseThisProxy(r, proxy) {
+	last6CharIndex := len(r.URL.Path) - 6
+	if last6CharIndex < 0 {
+		last6CharIndex = 0
+	}
+	// 1. It must be "GET" request
+	// 2. It must be static asseet, i.e. last 6 character should have ".json" or sth like that
+	// 3. Current Proxy is not available
+	if r.Method == "GET" && strings.Contains(r.URL.Path[last6CharIndex:], ".") && !shouldIUseThisProxy(r, proxy) {
 		if proxyWithAvailableAsset := getProxyWithAvailbleAssets(r); proxyWithAvailableAsset != nil {
 			proxyWithAvailableAsset.ServeHTTP(w, r)
 			return

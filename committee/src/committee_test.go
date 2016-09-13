@@ -27,6 +27,10 @@ func TestTimeConsuming(t *testing.T) {
 			//				time.Sleep(200 *time.Millisecond)
 			w.Write([]byte("9001 unstable"))
 		})
+		mux.HandleFunc("/901.js", func(w http.ResponseWriter, r *http.Request) {
+			//				time.Sleep(200 *time.Millisecond)
+			w.Write([]byte("9001 unstable"))
+		})
 		backendServer901 = httptest.NewServer(mux)
 		defer backendServer901.Close()
 	}
@@ -45,13 +49,22 @@ func TestTimeConsuming(t *testing.T) {
 		t.Fatalf("Status code not 200 but %v", resp.StatusCode)
 	}
 
-	resp, err = http.Get("http://localhost:2000/901")
+	resp, err = http.Get("http://localhost:2000/901.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if resp.StatusCode != 200 {
 		t.Fatalf("Status code not 200 but %v", resp.StatusCode)
+	}
+
+	resp, err = http.Get("http://localhost:2000/901")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != 404 {
+		t.Fatalf("Status code not 404 but %v", resp.StatusCode)
 	}
 
 	if testing.Short() {
