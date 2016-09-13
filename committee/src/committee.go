@@ -46,8 +46,9 @@ func (m *ReverseProxyMarshal) UnmarshalJSON(inp []byte) (err error) {
 	if err != nil {
 		return
 	}
-	m.ReverseProxy = httputil.NewSingleHostReverseProxy(target)
-	m.FlushInterval = flushInterval
+	reverseProxy := httputil.NewSingleHostReverseProxy(target)
+	reverseProxy.FlushInterval = flushInterval
+	m.ReverseProxy = reverseProxy
 	return nil
 }
 func (m *ReverseProxyMarshal) MarshalJSON() ([]byte, error) {
@@ -55,8 +56,8 @@ func (m *ReverseProxyMarshal) MarshalJSON() ([]byte, error) {
 }
 
 type ReverseProxyMarshal struct {
-	*httputil.ReverseProxy
-	url string
+	ReverseProxy *httputil.ReverseProxy
+	url          string
 }
 
 func newReverseProxyMarshal(u string) (r *ReverseProxyMarshal, err error) {
@@ -90,20 +91,13 @@ func getRevisionFromVersion(version string) (revision string) {
 	}
 	return revision
 }
-func getProxyFromRevision(revision string) http.Handler {
+func getProxyFromRevision(revision string) *httputil.ReverseProxy {
 	proxy := revisionProxyMap[revision]
 	if proxy == nil {
 		// get default revision
 		proxy = revisionProxyMap[versionRevisionMap["stable"]]
-		if proxy == nil {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusServiceUnavailable)
-				w.Write([]byte("Service unavailable!"))
-			})
-			return handler
-		}
 	}
-	return proxy
+	return proxy.ReverseProxy
 }
 func getSubdomain(domain string) string {
 	index := strings.Index(domain, ".")
@@ -111,6 +105,34 @@ func getSubdomain(domain string) string {
 		index = 0
 	}
 	return domain[:index]
+}
+
+func shouldIUseThisProxy(r *http.Request, p *httputil.ReverseProxy) bool {
+	if p == nil {
+		return false
+	}
+	sniffReq := new(http.Request)
+	*sniffReq = *r
+	sniffReq.Method = "HEAD"
+	p.Director(sniffReq)
+	transport := p.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	sniffRes, err := transport.RoundTrip(sniffReq)
+	if err == nil && sniffRes.StatusCode == http.StatusOK {
+		return true
+	}
+	return false
+}
+func getProxyWithAvailbleAssets(r *http.Request) *httputil.ReverseProxy {
+	for _, mp := range revisionProxyMap {
+		p := mp.ReverseProxy
+		if shouldIUseThisProxy(r, p) {
+			return p
+		}
+	}
+	return nil
 }
 
 var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +199,24 @@ var proxyHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	proxy := getProxyFromRevision(revision)
+
+	// @todo: we can move this down, so that if both designated proxy and default (stable) proxy are unavailable
+	// we can use whatever left. However, we must have better ping/monitor before doing so, so that we don't have
+	// silent failure
+	if proxy == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("Service unavailable!\n"))
+		return
+
+	}
+
+	if r.Method == "GET" && !shouldIUseThisProxy(r, proxy) {
+		if proxyWithAvailableAsset := getProxyWithAvailbleAssets(r); proxyWithAvailableAsset != nil {
+			proxyWithAvailableAsset.ServeHTTP(w, r)
+			return
+		}
+	}
+	// serve whatever status code and body it is originally
 	proxy.ServeHTTP(w, r)
 }
 var subdomainVersionHandler = func(w http.ResponseWriter, r *http.Request) {
@@ -230,13 +270,10 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		proxyUrl := r.PostFormValue(proxyKey)
-		proxy, err := newReverseProxyMarshal(proxyUrl)
-		proxy.FlushInterval = flushInterval
+		err := registerRevisionProxy(revision, proxyUrl)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			return
 		}
-		revisionProxyMap[revision] = proxy
 		w.WriteHeader(http.StatusNoContent)
 	case "DELETE":
 		revision := r.FormValue(revisionKey)
@@ -247,6 +284,16 @@ var revisionProxyHandler = func(w http.ResponseWriter, r *http.Request) {
 		delete(revisionProxyMap, revision)
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func registerRevisionProxy(revision, proxyUrl string) error {
+	proxy, err := newReverseProxyMarshal(proxyUrl)
+	proxy.ReverseProxy.FlushInterval = flushInterval
+	if err != nil {
+		return err
+	}
+	revisionProxyMap[revision] = proxy
+	return nil
 }
 
 var versionRevisionHandler = func(w http.ResponseWriter, r *http.Request) {
@@ -279,6 +326,10 @@ var versionRevisionHandler = func(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	Main(os.Args[1], os.Args[2])
+}
+
+func Main(p1, p2 string) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -323,14 +374,14 @@ func main() {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- http.ListenAndServe(":"+os.Args[1], proxyHandler)
+		errChan <- http.ListenAndServe(":"+p1, proxyHandler)
 	}()
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/sv", subdomainVersionHandler)
 		mux.HandleFunc("/vr", versionRevisionHandler)
 		mux.HandleFunc("/rp", revisionProxyHandler)
-		errChan <- http.ListenAndServe(":"+os.Args[2], mux)
+		errChan <- http.ListenAndServe(":"+p2, mux)
 	}()
 	panic(<-errChan)
 }
