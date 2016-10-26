@@ -1,0 +1,11 @@
+---
+- hosts: all
+
+  become: yes
+
+  tasks:
+
+  - user: name=myuser
+
+  - name: Placing key
+    authorized_key: user=myuser key="{{ lookup('file', '/Users/qjin/ansible/files/authorized_keys.myuser.pub') }}"
