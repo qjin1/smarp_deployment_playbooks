@@ -16,7 +16,7 @@ cd /mnt/smarpshare/
 #rm -rf $COMMIT_HASH
 #rm -rf build
 
-wget $BUILD_URL --header "private-token: psxKFaxo5of2y4_LCD8Z"
+wget $BUILD_URL --header "private-token: my_private_key"
 unzip download
 mv build $COMMIT_HASH
 rm download*
